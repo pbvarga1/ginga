@@ -328,8 +328,7 @@ class PolygonMixin(object):
             ya = ya.reshape(-1, 1)
             promoted = True
 
-        result = np.empty((ya.size, xa.size), dtype=np.bool)
-        result.fill(False)
+        result = np.zeros((ya.size, xa.size), dtype=np.bool)
 
         points = self.get_data_points()
 
@@ -338,20 +337,18 @@ class PolygonMixin(object):
             xi, yi = point
             tf = np.logical_and(
                 np.logical_or(np.logical_and(yi < ya, yj >= ya),
-                                 np.logical_and(yj < ya, yi >= ya)),
+                              np.logical_and(yj < ya, yi >= ya)),
                 np.logical_or(xi <= xa, xj <= xa))
-            # NOTE: get a divide by zero here for some elements whose tf=False
-            # Need to figure out a way to conditionally do those w/tf=True
-            # Till then we use the warnings module to suppress the warning.
-            ## with warnings.catch_warnings():
-            ##     warnings.simplefilter('default', RuntimeWarning)
-            # NOTE postscript: warnings context manager causes this computation
-            # to fail silently sometimes where it previously worked with a
-            # warning--commenting out the warning manager for now
-            cross = ((xi + (ya - yi).astype(np.float) /
-                          (yj - yi) * (xj - xi)) < xa)
+            if not tf.any():
+                xj, yj = xi, yi
+                continue
+            rows, cols = np.where(tf)
+            cross = np.zeros(result.shape, dtype=bool)
+            mask = ((xi + (ya[rows, cols] - yi).astype(np.float) /
+                          (yj - yi) * (xj - xi)) < xa[rows, cols])
 
-            result[tf == True] ^= cross[tf == True]
+            cross[rows, cols] = mask
+            result[tf] ^= cross[tf]
             xj, yj = xi, yi
 
         if promoted:
